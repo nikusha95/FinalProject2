@@ -6,31 +6,34 @@ namespace Repository.Repositories;
 public class GenericRepository<T> : IGenericRepository<T> where T : class
 {
     private readonly RestaurantDbContext _dbContext;
-    
+
     public GenericRepository(RestaurantDbContext dbContext)
     {
         _dbContext = dbContext;
     }
 
-    public async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>> expression = null)
+    public async Task<IEnumerable<T>> GetAllAsync(Expression<Func<T, bool>> expression = null,
+        Expression<Func<T, object>>[] includes = null)
     {
-        if (expression == null)
+        var data = expression == null ? _dbContext.Set<T>().AsQueryable() : _dbContext.Set<T>().Where(expression);
+
+        if (includes != null)
         {
-            return await _dbContext.Set<T>().ToListAsync();
+            data = includes.Aggregate(data, (item, include) => item.Include(include));
         }
-        return await _dbContext.Set<T>().Where(expression).ToListAsync();
+
+        return await data.ToListAsync();
     }
 
-    public T GetByIdAsync(int id)
+    public async Task<T> GetByIdAsync(int id)
     {
-      return  _dbContext.Set<T>().Find(id);
+        return await _dbContext.Set<T>().FindAsync(id);
     }
 
     public async Task AddAsync(T obj)
     {
-       await _dbContext.Set<T>().AddAsync(obj);
-       _dbContext.Entry(obj).State = EntityState.Added;
-
+        await _dbContext.Set<T>().AddAsync(obj);
+        _dbContext.Entry(obj).State = EntityState.Added;
     }
 
     public void Update(T obj)
@@ -41,16 +44,16 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
 
     public void Delete(int id)
     {
-       var entity  = _dbContext.Set<T>().Find(id);
-       if (entity != null)
-       {
-           _dbContext.Set<T>().Remove(entity);
-           _dbContext.Entry(entity).State = EntityState.Modified;
-       }
+        var entity = _dbContext.Set<T>().Find(id);
+        if (entity != null)
+        {
+            _dbContext.Set<T>().Remove(entity);
+            _dbContext.Entry(entity).State = EntityState.Modified;
+        }
     }
 
-    public  async Task SaveAsync()
+    public async Task SaveAsync()
     {
-       await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync();
     }
 }
